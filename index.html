@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Slow Roads</title>
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #0f0c29, #302b63, #24243e);
+            font-family: 'Arial', sans-serif;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            perspective: 1000px;
+        }
+
+        .game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .road {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #333, #555);
+            transform: rotateX(60deg);
+            transform-style: preserve-3d;
+            perspective: 1000px;
+        }
+
+        .car {
+            position: absolute;
+            width: 100px;
+            height: 50px;
+            background: linear-gradient(to bottom, #ff0000, #aa0000);
+            transform-style: preserve-3d;
+            transition: transform 0.1s;
+        }
+
+        .car-body {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #ff0000, #aa0000);
+            transform: rotateX(30deg);
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.7);
+        }
+
+        .wheel {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #333;
+            border-radius: 50%;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .wheel-front {
+            bottom: 0;
+            left: 20px;
+        }
+
+        .wheel-back {
+            bottom: 0;
+            right: 20px;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            display: flex;
+            gap: 20px;
+        }
+
+        .control-button {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+            transition: all 0.3s;
+        }
+
+        .control-button:active {
+            transform: scale(0.9);
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+        }
+
+        .score {
+            position: absolute;
+            top: 20px;
+            font-size: 24px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+
+        .restart-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .restart-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+<link href="manifest.json" rel="manifest"/></head>
+<body>
+<div class="game-container">
+<div class="road"></div>
+<div class="car">
+<div class="car-body"></div>
+<div class="wheel wheel-front"></div>
+<div class="wheel wheel-back"></div>
+</div>
+<div class="score">Score: 0</div>
+<div class="controls">
+<div class="control-button" id="left">←</div>
+<div class="control-button" id="right">→</div>
+</div>
+<div class="game-over">
+<h2>Game Over</h2>
+<p>Your score: <span id="final-score">0</span></p>
+<button class="restart-button" id="restart">Restart</button>
+</div>
+</div>
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const car = document.querySelector('.car');
+            const road = document.querySelector('.road');
+            const scoreElement = document.querySelector('.score');
+            const gameOverElement = document.querySelector('.game-over');
+            const finalScoreElement = document.getElementById('final-score');
+            const restartButton = document.getElementById('restart');
+            const leftButton = document.getElementById('left');
+            const rightButton = document.getElementById('right');
+
+            let carPosition = 0;
+            let score = 0;
+            let gameSpeed = 5;
+            let gameRunning = true;
+            let obstacles = [];
+            let obstacleInterval;
+
+            // Initialize the game
+            function initGame() {
+                carPosition = 0;
+                score = 0;
+                gameSpeed = 5;
+                gameRunning = true;
+                obstacles = [];
+                scoreElement.textContent = `Score: ${score}`;
+                gameOverElement.style.display = 'none';
+                car.style.left = 'calc(50% - 50px)';
+                car.style.bottom = '20px';
+
+                // Clear any existing obstacles
+                document.querySelectorAll('.obstacle').forEach(obstacle => {
+                    obstacle.remove();
+                });
+
+                // Start generating obstacles
+                obstacleInterval = setInterval(createObstacle, 2000);
+
+                // Start the game loop
+                gameLoop();
+            }
+
+            // Create a new obstacle
+            function createObstacle() {
+                if (!gameRunning) return;
+
+                const obstacle = document.createElement('div');
+                obstacle.className = 'obstacle';
+                obstacle.style.position = 'absolute';
+                obstacle.style.width = '50px';
+                obstacle.style.height = '50px';
+                obstacle.style.background = 'linear-gradient(to bottom, #00ff00, #00aa00)';
+                obstacle.style.transformStyle = 'preserve-3d';
+                obstacle.style.transform = 'rotateX(30deg)';
+                obstacle.style.boxShadow = '0 0 20px rgba(0, 255, 0, 0.7)';
+                obstacle.style.top = '-50px';
+                obstacle.style.left = `${Math.random() * (road.offsetWidth - 50)}px`;
+
+                road.appendChild(obstacle);
+                obstacles.push(obstacle);
+            }
+
+            // Move the car
+            function moveCar(direction) {
+                if (!gameRunning) return;
+
+                const carWidth = car.offsetWidth;
+                const roadWidth = road.offsetWidth;
+
+                if (direction === 'left' && carPosition > 0) {
+                    carPosition -= 20;
+                } else if (direction === 'right' && carPosition < roadWidth - carWidth) {
+                    carPosition += 20;
+                }
+
+                car.style.left = `${carPosition}px`;
+            }
+
+            // Game loop
+            function gameLoop() {
+                if (!gameRunning) return;
+
+                // Move obstacles
+                obstacles.forEach((obstacle, index) => {
+                    const obstacleTop = parseInt(obstacle.style.top) || 0;
+                    obstacle.style.top = `${obstacleTop + gameSpeed}px`;
+
+                    // Check for collision
+                    if (checkCollision(obstacle)) {
+                        endGame();
+                        return;
+                    }
+
+                    // Remove obstacles that are off the screen
+                    if (obstacleTop > road.offsetHeight) {
+                        obstacle.remove();
+                        obstacles.splice(index, 1);
+                        score++;
+                        scoreElement.textContent = `Score: ${score}`;
+
+                        // Increase speed every 10 points
+                        if (score % 10 === 0) {
+                            gameSpeed += 1;
+                        }
+                    }
+                });
+
+                requestAnimationFrame(gameLoop);
+            }
+
+            // Check for collision
+            function checkCollision(obstacle) {
+                const carRect = car.getBoundingClientRect();
+                const obstacleRect = obstacle.getBoundingClientRect();
+
+                return !(
+                    carRect.right < obstacleRect.left ||
+                    carRect.left > obstacleRect.right ||
+                    carRect.bottom < obstacleRect.top ||
+                    carRect.top > obstacleRect.bottom
+                );
+            }
+
+            // End the game
+            function endGame() {
+                gameRunning = false;
+                clearInterval(obstacleInterval);
+                finalScoreElement.textContent = score;
+                gameOverElement.style.display = 'block';
+
+                // Play game over sound
+                playSound('gameOver');
+            }
+
+            // Play sound
+            function playSound(type) {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                if (type === 'gameOver') {
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(220, audioContext.currentTime);
+                    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 1);
+                } else if (type === 'move') {
+                    oscillator.type = 'square';
+                    oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+                    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.1);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.1);
+                }
+            }
+
+            // Event listeners for controls
+            leftButton.addEventListener('click', () => {
+                moveCar('left');
+                playSound('move');
+            });
+
+            rightButton.addEventListener('click', () => {
+                moveCar('right');
+                playSound('move');
+            });
+
+            restartButton.addEventListener('click', initGame);
+
+            // Keyboard controls
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowLeft') {
+                    moveCar('left');
+                    playSound('move');
+                } else if (e.key === 'ArrowRight') {
+                    moveCar('right');
+                    playSound('move');
+                }
+            });
+
+            // Touch controls for mobile
+            let touchStartX = 0;
+            let touchEndX = 0;
+
+            document.addEventListener('touchstart', (e) => {
+                touchStartX = e.changedTouches[0].screenX;
+            }, false);
+
+            document.addEventListener('touchend', (e) => {
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipe();
+            }, false);
+
+            function handleSwipe() {
+                if (touchEndX < touchStartX - 30) {
+                    moveCar('left');
+                    playSound('move');
+                } else if (touchEndX > touchStartX + 30) {
+                    moveCar('right');
+                    playSound('move');
+                }
+            }
+
+            // Start the game
+            initGame();
+        });
+    </script>
+<script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {})); }</script></body>
+</html>
